@@ -8,60 +8,26 @@ import re
 import urllib2
 import os
 from lxml import etree 
-import selenium.webdriver.support.ui as ui
+from selenium.webdriver.common import proxy as _px
 import argparse
 from pymongo import MongoClient
 import sys
 reload(sys)
 sys.setdefaultencoding("utf-8")
 import os
+from proxy_ip import main
 class get_example():
     """docstring for get_example"""
     def __init__(self):
         self.path=r'D:\\phantomjs-2.1.1-windows\\bin\\phantomjs.exe'
-        self.driver=webdriver.PhantomJS(self.path)
-        self.headers={
-             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Safari/537.36"
-            }
-    def get_ip(self):
-        url = 'http://www.xicidaili.com/nn/1'
-        req = urllib2.Request(url,headers=headers)
-        res = urllib2.urlopen(req).read()
-
-        soup = BeautifulSoup(res)
-        #print soup.body
-        ips = soup.find_all('tr')
-        f = open("proxy.txt","w")
-        #print ips
-        dirt={}
-        for x in range(1,len(ips)):
-            ip = ips[x]
-            tds = ip.find_all("td")
-            dirt[tds[1].text]=tds[2].text
-        return  dirt
+        self.headers={'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.48'}
+        self.base_url='https://social.msdn.microsoft.com/Search/zh-CN?query='
     def html_to_soup(self,url):
-        #headers={'User-agent' : 'Mozilla/5.0'}
-        #req = urllib2.Request(url,None,headers) 
-        #response = urllib2.urlopen(req) 
+        # main()
+        # req = urllib2.Request(url, headers=self.headers)
+        # html = urllib2.urlopen(req).read()
+        # soup=BeautifulSoup(html,"html.parser")
         req = urllib2.Request(url,headers=self.headers) 
-        # httpHandler = urllib2.HTTPHandler(debuglevel=1)
-        # opener = urllib2.build_opener(httpHandler)
-        # urllib2.install_opener(opener)
-
-        # try:
-        #     response = urllib2.urlopen(req)
-        # except urllib2.URLError, e:
-        #     print e.code, e.reason
-        # except urllib2.URLError, e:
-        #     print e.reason
-        # try:
-        #     urllib2.urlopen(req)
-        # except urllib2.HTTPError, e:
-        #     print e.code
-        # except urllib2.URLError, e:
-        #     print e.reason
-        # else:
-        #     print "OK"
         response = urllib2.urlopen(req)
         the_page = response.read()
         soup=BeautifulSoup(the_page,"html.parser")
@@ -69,22 +35,28 @@ class get_example():
 
         return soup
     def parse_search_page(self,api):
-        base_url='https://social.msdn.microsoft.com/Search/zh-CN?query='
-        url=base_url+api
-        self.driver.get(url)
+        # proxy=webdriver.Proxy()
+        # proxy.proxy_type=_px.ProxyType.MANUAL
+        # proxy.http_proxy=ip
+        # # 将代理设置添加到webdriver.DesiredCapabilities.PHANTOMJS中
+        # proxy.add_to_capabilities(webdriver.DesiredCapabilities.PHANTOMJS)
+        # self.driver.start_session(webdriver.DesiredCapabilities.PHANTOMJS)
+        driver=webdriver.PhantomJS(self.path)
+        url=self.base_url+api
+        driver.get(url)
         #wait = ui.WebDriverWait(self.driver, 10)
         #wait.until(lambda dr: dr.find_element_by_class_name('SearchResult').is_displayed())
         time.sleep(3)
         filename=api+'.html'
         fp = open(filename,'w')
-        fp.write(self.driver.page_source)
-        self.driver.quit()
+        fp.write(driver.page_source)
+        driver.quit()
         fp.close()
         #print query_url
         htmlfile = open(filename, 'r')
         the_page = htmlfile.read()
         htmlfile.close()
-        os.remove(filename)
+        #os.remove(filename)
         data=BeautifulSoup(the_page,"html.parser")
         new_url=''
         non_result=data.find('div',{'id':'NoResultsContainer'})#  没有找到搜索项
@@ -136,13 +108,13 @@ class get_example():
             example=self.get_example(url)
             new_dir[key]=example
         return new_dir
-    def connect_db(self):
+    def connect_db(self):    #连接mongodb数据库
         client = MongoClient('localhost', 27017)
         db_name = 'API'
         db = client[db_name]
         collection_useraction = db['example']
         return collection_useraction
-    def add_db(self,api,dirc):
+    def add_db(self,api,dirc):    #将数据添加到数据库中
         insert_dir={} 
         insert_dir[api]=dirc
         con=self.connect_db()
@@ -166,14 +138,16 @@ class get_example():
                     i=i+1
                 all_api.append(end_str)
         return set(all_api)
+    def execute(self):
+        all_api=self.get_all_api()
+        for api in all_api:
+            if api!='':
+                print api
+                #ip=main()
+                url=self.parse_search_page(api)
+                example_dir=self.example_to_dir(self.parse_function_page(url))
+                self.add_db(api,example_dir)
 if __name__ == '__main__':
     example=get_example()
-    all_api=example.get_all_api()
-    for api in all_api:
-        if api!='':
-            print api
-            url=example.parse_search_page(api)
-            example_dir=example.example_to_dir(example.parse_function_page(url))
-            example.add_db(api,example_dir)
-
+    example.execute()
 
